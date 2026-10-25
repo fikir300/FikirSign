@@ -1,0 +1,43 @@
+[
+  {
+    "id": "pain",
+    "en": "pain",
+    "am": "ህመም",
+    "_comment": "TODO: PLACEHOLDERS to be replaced with the ML teammate's real class list"
+  },
+  {
+    "id": "head",
+    "en": "head",
+    "am": "ራስ"
+  },
+  {
+    "id": "stomach",
+    "en": "stomach",
+    "am": "ሆድ"
+  },
+  {
+    "id": "help",
+    "en": "help",
+    "am": "እርዳታ"
+  },
+  {
+    "id": "doctor",
+    "en": "doctor",
+    "am": "ሐኪም"
+  },
+  {
+    "id": "medicine",
+    "en": "medicine",
+    "am": "መድኃኒት"
+  },
+  {
+    "id": "yes",
+    "en": "yes",
+    "am": "አዎ"
+  },
+  {
+    "id": "no",
+    "en": "no",
+    "am": "አይደለም"
+  }
+]

@@ -1,6 +1,6 @@
 """
 Build script to package AWS Lambda function.
-Creates function.zip containing exactly lambda_function.py and phrases.json.
+Creates function.zip containing lambda_function.py, phrases.json, and signs.json.
 """
 
 import os
@@ -13,6 +13,7 @@ ZIP_PATH = os.path.join(SCRIPT_DIR, ZIP_NAME)
 REQUIRED_FILES = [
     "lambda_function.py",
     "phrases.json",
+    "signs.json",
 ]
 
 

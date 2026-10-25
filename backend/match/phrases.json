@@ -3,13 +3,13 @@
     "id": "p001",
     "en": "Where does it hurt?",
     "am": "የት ነው የሚያመዎት?",
-    "category": "symptoms"
+    "category": "examination"
   },
   {
     "id": "p002",
     "en": "Please take a seat",
     "am": "እባክዎ ይቀመጡ",
-    "category": "general"
+    "category": "examination"
   },
   {
     "id": "p003",
@@ -27,6 +27,204 @@
     "id": "p005",
     "en": "Take this medicine twice a day",
     "am": "ይህንን መድኃኒት በቀን ሁለት ጊዜ ይውሰዱ",
-    "category": "pharmacy"
+    "category": "medication"
+  },
+  {
+    "id": "p006",
+    "en": "I have a headache",
+    "am": "ራስ ምታት አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p007",
+    "en": "I have stomach pain",
+    "am": "የሆድ ህመም አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p008",
+    "en": "I have chest pain",
+    "am": "የደረት ህመም አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p009",
+    "en": "I have back pain",
+    "am": "የጀርባ ህመም አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p010",
+    "en": "I have a fever",
+    "am": "ትኩሳት አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p011",
+    "en": "I have a cough",
+    "am": "ሳል አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p012",
+    "en": "I feel dizzy",
+    "am": "ማዞር ይሰማኛል",
+    "category": "symptoms"
+  },
+  {
+    "id": "p013",
+    "en": "I feel nauseous",
+    "am": "የማቅለሽለሽ ስሜት አለኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p014",
+    "en": "I have difficulty breathing",
+    "am": "የመተንፈስ ችግር አለብኝ",
+    "category": "symptoms"
+  },
+  {
+    "id": "p015",
+    "en": "Do you have any existing health conditions?",
+    "am": "ቀደም ሲል የነበረ የጤና እክል አለብዎት?",
+    "category": "medical_history"
+  },
+  {
+    "id": "p016",
+    "en": "Have you had surgery before?",
+    "am": "ከዚህ በፊት ቀዶ ጥገና ተደርጎልዎታል?",
+    "category": "medical_history"
+  },
+  {
+    "id": "p017",
+    "en": "What medications are you currently taking?",
+    "am": "አሁን ምን ዓይነት መድኃኒት እየወሰዱ ነው?",
+    "category": "medical_history"
+  },
+  {
+    "id": "p018",
+    "en": "Please open your mouth",
+    "am": "እባክዎ አፍዎን ይክፈቱ",
+    "category": "examination"
+  },
+  {
+    "id": "p019",
+    "en": "Please take a deep breath",
+    "am": "እባክዎ በጥልቀት ይተንፍሱ",
+    "category": "examination"
+  },
+  {
+    "id": "p020",
+    "en": "When did the pain start?",
+    "am": "ህመሙ መቼ ጀመረ?",
+    "category": "examination"
+  },
+  {
+    "id": "p021",
+    "en": "I need medicine",
+    "am": "መድኃኒት ያስፈልገኛል",
+    "category": "medication"
+  },
+  {
+    "id": "p022",
+    "en": "When should I take this medicine?",
+    "am": "ይህንን መድኃኒት መቼ መውሰድ አለብኝ?",
+    "category": "medication"
+  },
+  {
+    "id": "p023",
+    "en": "How many times a day should I take it?",
+    "am": "በቀን ስንት ጊዜ መውሰድ አለብኝ?",
+    "category": "medication"
+  },
+  {
+    "id": "p024",
+    "en": "I have a question about my medicine",
+    "am": "ስለ መድኃኒቴ ጥያቄ አለኝ",
+    "category": "medication"
+  },
+  {
+    "id": "p025",
+    "en": "Please help me",
+    "am": "እባክዎ እርዱኝ",
+    "category": "emergency"
+  },
+  {
+    "id": "p026",
+    "en": "I have severe pain",
+    "am": "ብርቱ ህመም አለብኝ",
+    "category": "emergency"
+  },
+  {
+    "id": "p027",
+    "en": "I need medical assistance",
+    "am": "የሕክምና እርዳታ ያስፈልገኛል",
+    "category": "emergency"
+  },
+  {
+    "id": "p028",
+    "en": "Yes",
+    "am": "አዎ",
+    "category": "basic"
+  },
+  {
+    "id": "p029",
+    "en": "No",
+    "am": "አይደለም",
+    "category": "basic"
+  },
+  {
+    "id": "p030",
+    "en": "Please",
+    "am": "እባክዎ",
+    "category": "basic"
+  },
+  {
+    "id": "p031",
+    "en": "Thank you",
+    "am": "አመሰግናለሁ",
+    "category": "basic"
+  },
+  {
+    "id": "p032",
+    "en": "I do not understand",
+    "am": "አልገባኝም",
+    "category": "basic"
+  },
+  {
+    "id": "p033",
+    "en": "Please repeat that",
+    "am": "እባክዎ ይድገሙት",
+    "category": "basic"
+  },
+  {
+    "id": "p034",
+    "en": "I need water",
+    "am": "ውሃ እፈልጋለሁ",
+    "category": "basic"
+  },
+  {
+    "id": "p035",
+    "en": "I need to use the bathroom",
+    "am": "መጸዳጃ ቤት መጠቀም እፈልጋለሁ",
+    "category": "basic"
+  },
+  {
+    "id": "p036",
+    "en": "I need an appointment",
+    "am": "ቀጠሮ ያስፈልገኛል",
+    "category": "appointments"
+  },
+  {
+    "id": "p037",
+    "en": "When should I return?",
+    "am": "መቼ መመለስ አለብኝ?",
+    "category": "appointments"
+  },
+  {
+    "id": "p038",
+    "en": "Where should I go next?",
+    "am": "ቀጥሎ ወዴት መሄድ አለብኝ?",
+    "category": "appointments"
   }
 ]
