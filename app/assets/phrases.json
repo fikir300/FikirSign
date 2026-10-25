@@ -1,0 +1,32 @@
+[
+  {
+    "id": "p001",
+    "en": "Where does it hurt?",
+    "am": "የት ነው የሚያመዎት?",
+    "category": "symptoms"
+  },
+  {
+    "id": "p002",
+    "en": "Please take a seat",
+    "am": "እባክዎ ይቀመጡ",
+    "category": "general"
+  },
+  {
+    "id": "p003",
+    "en": "Do you have any allergies?",
+    "am": "የአለርጂ ችግር አለብዎት?",
+    "category": "medical_history"
+  },
+  {
+    "id": "p004",
+    "en": "I will check your blood pressure",
+    "am": "የደም ግፊትዎን እለካለሁ",
+    "category": "examination"
+  },
+  {
+    "id": "p005",
+    "en": "Take this medicine twice a day",
+    "am": "ይህንን መድኃኒት በቀን ሁለት ጊዜ ይውሰዱ",
+    "category": "pharmacy"
+  }
+]
