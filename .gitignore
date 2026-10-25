@@ -1,0 +1,24 @@
+# Environment & Secrets
+.env
+*.env
+backend/**/.env
+app/.env
+.aws/
+*.keystore
+*.jks
+key.properties
+google-services.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Archives & Builds
+*.zip
+
+# OS metadata
+.DS_Store
+Thumbs.db
