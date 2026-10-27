@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EthSL Data Collector - Fikir Signs</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #fff; text-align: center; margin: 0; padding: 20px; }
+    .container { position: relative; display: inline-block; margin-top: 15px; }
+    video, canvas { border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); transform: scaleX(-1); }
+    #overlay { position: absolute; top: 20px; left: 20px; font-size: 22px; font-weight: bold; color: #00ffcc; text-shadow: 2px 2px 4px #000; text-align: left; }
+    #countdown { position: absolute; top: 35%; left: 45%; font-size: 90px; font-weight: 900; color: #ff9900; display: none; text-shadow: 3px 3px 6px #000; }
+    .controls { background: #1e1e1e; padding: 15px; border-radius: 10px; display: inline-block; }
+    select, input, button { padding: 10px 14px; font-size: 15px; margin: 5px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: white; }
+    button { background: #007acc; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    button:hover { background: #005999; }
+    button:disabled { background: #444; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <h2>Fikir Signs — EthSL Webcam Collector</h2>
+  <p>Zero install required. Extracts the exact 144 coordinates (Hands + Upper Body) and downloads valid <code>.npy</code> files.</p>
+
+  <div class="controls">
+    <label>Signer ID: <input type="text" id="signerId" value="signer_1"></label>
+    <label>Sign: 
+    <select id="signSelect">
+        <option value="IDLE">0. IDLE (ምንም ምልክት የለም)</option>
+        <option value="HELLO">1. HELLO (ሰላም)</option>
+        <option value="HELP">2. HELP (እርዳታ)</option>
+        <option value="DOCTOR">3. DOCTOR (ዶክተር)</option>
+        <option value="HOSPITAL">4. HOSPITAL (ሆስፒታል)</option>
+        <option value="SICK">5. SICK (ህመም)</option>
+        <option value="FEVER">6. FEVER (ትኩሳት)</option>
+        <option value="HEADACHE">7. HEADACHE (ራስ ምታት)</option>
+        <option value="STOMACHACHE">8. STOMACHACHE (ሆድ ህመም)</option>
+        <option value="MEDICINE">9. MEDICINE (መድሃኒት)</option>
+        <option value="INJECTION">10. INJECTION (መርፌ)</option>
+      </select>
+    </label>
+    <button id="recordBtn">Record Clip (30 Frames)</button>
+  </div>
+
+  <br>
+
+  <div class="container">
+    <video id="webcam" width="640" height="480" autoplay playsinline style="display:none;"></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <div id="overlay">Status: Initializing Camera...</div>
+    <div id="countdown">3</div>
+  </div>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const cd = document.getElementById('countdown');
+    const recordBtn = document.getElementById('recordBtn');
+
+    let isRecording = false;
+    let recordedFrames = [];
+
+    const holistic = new Holistic({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`
+    });
+
+    holistic.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    holistic.onResults((results) => {
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+      const vec = new Float32Array(144); // 63 Left + 63 Right + 18 Pose
+
+      // Left Hand: 21 points x 3 (indices 0..62)
+      if (results.leftHandLandmarks) {
+        results.leftHandLandmarks.forEach((pt, i) => {
+          vec[i * 3] = pt.x; vec[i * 3 + 1] = pt.y; vec[i * 3 + 2] = pt.z;
+        });
+      }
+
+      // Right Hand: 21 points x 3 (indices 63..125)
+      if (results.rightHandLandmarks) {
+        results.rightHandLandmarks.forEach((pt, i) => {
+          vec[63 + i * 3] = pt.x; vec[63 + i * 3 + 1] = pt.y; vec[63 + i * 3 + 2] = pt.z;
+        });
+      }
+
+      // Pose: Nose(0), L_Shoulder(11), R_Shoulder(12), L_Elbow(13), R_Elbow(14), Mid-Hip (indices 126..143)
+      if (results.poseLandmarks) {
+        const p = results.poseLandmarks;
+        const indices = [0, 11, 12, 13, 14];
+        indices.forEach((idx, i) => {
+          vec[126 + i * 3] = p[idx].x;
+          vec[126 + i * 3 + 1] = p[idx].y;
+          vec[126 + i * 3 + 2] = p[idx].z;
+        });
+        vec[126 + 15] = (p[23].x + p[24].x) / 2.0;
+        vec[126 + 16] = (p[23].y + p[24].y) / 2.0;
+        vec[126 + 17] = (p[23].z + p[24].z) / 2.0;
+      }
+
+      if (!isRecording && overlay.innerText.includes("Initializing")) {
+        overlay.innerText = "Status: Ready to Record";
+      }
+
+      if (isRecording && recordedFrames.length < 30) {
+        recordedFrames.push(Array.from(vec));
+        overlay.innerText = `Recording: ${recordedFrames.length}/30 frames`;
+        if (recordedFrames.length === 30) {
+          isRecording = false;
+          saveClip();
+        }
+      }
+    });
+
+    const camera = new Camera(video, {
+      onFrame: async () => { await holistic.send({ image: video }); },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+
+    recordBtn.addEventListener('click', () => {
+      recordBtn.disabled = true;
+      let count = 3;
+      cd.style.display = 'block';
+      cd.innerText = count;
+
+      const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          cd.innerText = count;
+        } else {
+          clearInterval(timer);
+          cd.style.display = 'none';
+          recordedFrames = [];
+          isRecording = true;
+          overlay.innerText = "RECORDING NOW!";
+        }
+      }, 1000);
+    });
+
+    // Writes a valid NumPy .npy binary file directly from browser
+    function saveClip() {
+      overlay.innerText = "Clip Complete! Downloading .npy...";
+      const signer = document.getElementById('signerId').value.trim() || 'signer_1';
+      const sign = document.getElementById('signSelect').value;
+      
+      const flatData = new Float32Array(30 * 144);
+      for (let f = 0; f < 30; f++) {
+        flatData.set(recordedFrames[f], f * 144);
+      }
+
+      const headerStr = `{'descr': '<f4', 'fortran_order': False, 'shape': (30, 144), }`;
+      const padLen = 16 - ((10 + headerStr.length) % 16);
+      const paddedHeader = headerStr + ' '.repeat(padLen) + '\n';
+      const headerLen = paddedHeader.length;
+
+      const npyBlob = new Blob([
+        new Uint8Array([0x93, 0x4E, 0x55, 0x4D, 0x50, 0x59, 1, 0]),
+        new Uint8Array([headerLen & 0xFF, (headerLen >> 8) & 0xFF]),
+        new TextEncoder().encode(paddedHeader),
+        flatData.buffer
+      ], { type: 'application/octet-stream' });
+
+      const url = URL.createObjectURL(npyBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sign}_${signer}_${Date.now()}.npy`;
+      a.click();
+
+      setTimeout(() => {
+        overlay.innerText = `Saved ${sign}! Ready for next.`;
+        recordBtn.disabled = false;
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
