@@ -77,11 +77,10 @@ Install the following tools:
 ### 1. Clone the Repository
 
 ```bash
-git clone YOUR_GITHUB_REPOSITORY_URL
+git clone 
 cd FikirSign
 ```
 
-Replace `YOUR_GITHUB_REPOSITORY_URL` with the actual GitHub repository URL.
 
 ### 2. Install Flutter Dependencies
 
@@ -99,13 +98,7 @@ For example, if your project has a Dart API configuration file, define the base 
 
 ```dart
 const String apiBaseUrl = 'YOUR_AWS_HTTPS_ENDPOINT';
-```
-
-Replace `YOUR_AWS_HTTPS_ENDPOINT` with the actual HTTPS endpoint configured for your AWS backend.
-
-Ensure that the Flutter API service uses this base URL when sending requests to the backend.
-
-**Important:** The example above is a configuration example. Adapt it to the API configuration structure already used in your project.
+``
 
 ### 4. Deploy and Configure AWS Lambda
 
@@ -130,7 +123,6 @@ After configuring the AWS endpoint, run:
 flutter run
 ```
 
-Choose an available device, such as Chrome or Windows, if prompted.
 
 The application should communicate with the deployed AWS backend when the relevant API integration is implemented and configured correctly.
 
@@ -165,7 +157,6 @@ The next development priorities include:
 
 Team members should coordinate changes across the frontend, backend, and AI components to ensure compatibility.
 
-Before submitting changes:
 
 - Test the affected features.
 - Verify API endpoint paths and request and response formats.
@@ -177,8 +168,11 @@ Before submitting changes:
 ## Team
 
 Fikr Sign is a collaborative hackathon project with contributions across application development, backend API development, AI integration, and UI/UX design.
-
-Add the team members' names and responsibilities here.
+Betelhem Nurlachw godie
+Fikirte Alemayehu Achamyeleh
+Mahilet Andualem Beyene
+Soleyana Abera Derara
+Soliyana Shewalante Mengesha
 
 ## Vision
 
