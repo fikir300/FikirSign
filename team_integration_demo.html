@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fikir Signs — Live Team Integration Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #0f111a; color: #fff; text-align: center; margin: 0; padding: 20px; }
+    .card { background: #1a1d2e; border: 1px solid #2a2e4a; border-radius: 12px; padding: 20px; display: inline-block; margin-bottom: 15px; }
+    #english { font-size: 42px; font-weight: bold; color: #00ffcc; }
+    #amharic { font-size: 32px; color: #ffbb00; margin-top: 5px; }
+    #meta { font-size: 14px; color: #888; margin-top: 5px; }
+    video, canvas { border-radius: 10px; transform: scaleX(-1); }
+  </style>
+</head>
+<body>
+
+  <h1>Fikir Signs — Cloud Live Translation</h1>
+  
+  <div class="card">
+    <div id="english">Ready to Sign</div>
+    <div id="amharic">ለመተርጎም ዝግጁ</div>
+    <div id="meta">AWS Latency: -- | Confidence: --</div>
+  </div>
+
+  <br>
+
+  <video id="webcam" width="640" height="480" autoplay playsinline style="display:none;"></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <script>
+    const AWS_ENDPOINT = "https://o7dchd3hgicxm3wtbtvcx44ega0akfeh.lambda-url.eu-north-1.on.aws/";
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const engEl = document.getElementById('english');
+    const amhEl = document.getElementById('amharic');
+    const metaEl = document.getElementById('meta');
+
+    const buffer = [];
+    let isRequestInProgress = false;
+
+    const holistic = new Holistic({
+      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${f}`
+    });
+    holistic.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5 });
+
+    holistic.onResults((res) => {
+      ctx.drawImage(res.image, 0, 0, canvas.width, canvas.height);
+      const vec = new Float32Array(144);
+
+      if (res.leftHandLandmarks) {
+        res.leftHandLandmarks.forEach((pt, i) => { vec[i*3] = pt.x; vec[i*3+1] = pt.y; vec[i*3+2] = pt.z; });
+      }
+      if (res.rightHandLandmarks) {
+        res.rightHandLandmarks.forEach((pt, i) => { vec[63+i*3] = pt.x; vec[63+i*3+1] = pt.y; vec[63+i*3+2] = pt.z; });
+      }
+      if (res.poseLandmarks) {
+        const p = res.poseLandmarks;
+        [0, 11, 12, 13, 14].forEach((idx, i) => {
+          vec[126+i*3] = p[idx].x; vec[126+i*3+1] = p[idx].y; vec[126+i*3+2] = p[idx].z;
+        });
+        vec[126+15] = (p[23].x + p[24].x) / 2;
+        vec[126+16] = (p[23].y + p[24].y) / 2;
+        vec[126+17] = (p[23].z + p[24].z) / 2;
+      }
+
+      buffer.push(Array.from(vec));
+      if (buffer.length > 30) buffer.shift();
+
+      if (buffer.length === 30 && !isRequestInProgress) {
+        sendToAWS();
+      }
+    });
+
+    async function sendToAWS() {
+      isRequestInProgress = true;
+      const t0 = performance.now();
+      try {
+        const res = await fetch(AWS_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ frames: buffer })
+        });
+        const data = await res.json();
+        const latency = Math.round(performance.now() - t0);
+
+        if (data.sign !== "IDLE") {
+          engEl.innerText = data.sign;
+          amhEl.innerText = data.amharic || "";
+          metaEl.innerText = `AWS Latency: ${latency} ms | Confidence: ${(data.confidence * 100).toFixed(0)}%`;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      // Trigger request every ~250ms for smooth live updates
+      setTimeout(() => { isRequestInProgress = false; }, 250);
+    }
+
+    const camera = new Camera(video, {
+      onFrame: async () => { await holistic.send({ image: video }); },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+  </script>
+</body>
+</html>
