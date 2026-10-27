@@ -94,10 +94,8 @@ flutter pub get
 
 Configure the Flutter application to use the deployed AWS HTTPS endpoint.
 
-For example, if your project has a Dart API configuration file, define the base URL as follows:
-
 ```dart
-const String apiBaseUrl = 'YOUR_AWS_HTTPS_ENDPOINT';
+const String apiBaseUrl = 'https://lsx2aciyrr4b3q5tnrn4okeudu0gphwn.lambda-url.eu-north-1.on.aws/';
 ``
 
 ### 4. Deploy and Configure AWS Lambda
