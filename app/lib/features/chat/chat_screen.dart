@@ -3,9 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
-import 'dart:ui_web' as ui_web;
-import 'package:flutter/foundation.dart';
+import 'dart:js' as js;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../core/theme/app_theme.dart';
@@ -16,16 +14,16 @@ class ChatMessageItem {
   final String amharicText;
   final double confidence;
   final DateTime timestamp;
-  final bool isUser;
-  final String inputType; // 'sign', 'voice', 'text', or 'system'
+  final String sender; // 'Staff (Hearing)', 'Patient (Deaf)', or 'System'
+  final String type;   // 'sign', 'voice', 'text', or 'system'
 
   ChatMessageItem({
     required this.englishText,
     required this.amharicText,
     required this.confidence,
     required this.timestamp,
-    required this.isUser,
-    required this.inputType,
+    required this.sender,
+    required this.type,
   });
 }
 
@@ -43,102 +41,27 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final FlutterTts _tts = FlutterTts();
 
-  // App & User Profile State
+  // User Profile State
   bool _isDarkMode = true;
-  String _userName = "Guest User";
-  String _userEmail = "guest@fikirsigns.et";
+  String _userName = "Staff Member";
+  String _userEmail = "staff@hospital.et";
   bool _isLoggedIn = false;
 
-  // Real-time Status Strip
-  String _liveSign = "Standby";
-  String _liveAmharic = "ምልክት ይጠበቃል";
-
-  // Speech-To-Text (Voice) State
+  // Status Bar
+  String _statusSign = "Standby";
+  String _statusAmharic = "ዝግጁ";
   bool _isListeningVoice = false;
-  html.SpeechRecognition? _speechRecognition;
 
   @override
   void initState() {
     super.initState();
     _initTTS();
-    _initSpeechRecognition();
-    _addInitialGreeting();
+    _addSystemGreeting();
   }
 
   void _initTTS() async {
     await _tts.setLanguage("en-US");
     await _tts.setSpeechRate(0.85);
-  }
-
-  // ---------------------------------------------------------------------------
-  // REAL VOICE INPUT (Web Speech-to-Text API)
-  // ---------------------------------------------------------------------------
-  void _initSpeechRecognition() {
-    if (kIsWeb && html.SpeechRecognition.supported) {
-      _speechRecognition = html.SpeechRecognition()
-        ..continuous = false
-        ..interimResults = false
-        ..lang = 'en-US';
-
-      _speechRecognition!.onResult.listen((event) {
-        final results = event.results;
-        if (results != null && results.isNotEmpty) {
-          final transcript = results[0].item(0).transcript;
-          if (transcript != null && transcript.trim().isNotEmpty) {
-            _submitTextMessage(transcript.trim(), isVoice: true);
-          }
-        }
-        setState(() => _isListeningVoice = false);
-      });
-
-      _speechRecognition!.onError.listen((event) {
-        debugPrint("Speech recognition error: $event");
-        setState(() => _isListeningVoice = false);
-      });
-
-      _speechRecognition!.onEnd.listen((event) {
-        setState(() => _isListeningVoice = false);
-      });
-    }
-  }
-
-  void _toggleVoiceRecording() {
-    if (_speechRecognition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Voice recognition is not supported in this browser.")),
-      );
-      return;
-    }
-
-    if (_isListeningVoice) {
-      _speechRecognition!.stop();
-      setState(() => _isListeningVoice = false);
-    } else {
-      try {
-        _speechRecognition!.start();
-        setState(() => _isListeningVoice = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Listening... Speak in English into your microphone."),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      } catch (e) {
-        debugPrint("Mic start error: $e");
-        setState(() => _isListeningVoice = false);
-      }
-    }
-  }
-
-  void _addInitialGreeting() {
-    _messages.add(ChatMessageItem(
-      englishText: "Welcome to Fikir Signs! I am your Ethiopian Sign Language (EthSL) assistant. You can sign into your camera, speak with the microphone, or type below.",
-      amharicText: "እንኳን ወደ ፍቅር ሳይንስ በደህና መጡ! በካሜራ፣ በድምጽ ወይም በጽሁፍ መተርጎም ይችላሉ።",
-      confidence: 1.0,
-      timestamp: DateTime.now(),
-      isUser: false,
-      inputType: 'system',
-    ));
   }
 
   void _speak(String text) async {
@@ -147,7 +70,49 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _submitTextMessage(String text, {bool isVoice = false}) {
+  void _addSystemGreeting() {
+    _messages.add(ChatMessageItem(
+      englishText: "Communication Bridge Active. Staff can speak or type in English. Patients can sign using the camera.",
+      amharicText: "የመገናኛ ድልድዩ ተጀምሯል። የህክምና ባለሙያው በድምጽ ወይም በጽሁፍ፣ ታካሚው በምልክት ቋንቋ ማሳየት ይችላሉ።",
+      confidence: 1.0,
+      timestamp: DateTime.now(),
+      sender: "System",
+      type: "system",
+    ));
+  }
+
+  // ---------------------------------------------------------------------------
+  // REAL VOICE INPUT (Web Speech API via Chrome)
+  // ---------------------------------------------------------------------------
+  void _startVoiceInput() {
+    setState(() => _isListeningVoice = true);
+
+    try {
+      js.context.callMethod('startNativeVoiceDictation', [
+        (spokenText) {
+          if (mounted && spokenText != null && spokenText.toString().trim().isNotEmpty) {
+            setState(() => _isListeningVoice = false);
+            _submitStaffMessage(spokenText.toString().trim(), isVoice: true);
+          }
+        },
+        (errorMsg) {
+          if (mounted) {
+            setState(() => _isListeningVoice = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Voice Error: $errorMsg")),
+            );
+          }
+        }
+      ]);
+    } catch (e) {
+      setState(() => _isListeningVoice = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Voice recognition is available on Google Chrome.")),
+      );
+    }
+  }
+
+  void _submitStaffMessage(String text, {bool isVoice = false}) {
     final clean = text.trim();
     if (clean.isEmpty) return;
     _textController.clear();
@@ -155,11 +120,11 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages.add(ChatMessageItem(
         englishText: clean,
-        amharicText: "",
+        amharicText: "Staff Message (የባለሙያው መልእክት)",
         confidence: 1.0,
         timestamp: DateTime.now(),
-        isUser: true,
-        inputType: isVoice ? 'voice' : 'text',
+        sender: "Staff (Hearing)",
+        type: isVoice ? "voice" : "text",
       ));
     });
     _scrollToBottom();
@@ -178,48 +143,57 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // SIGN INGESTION: Sends captured frames to backend & updates chat
+  // PROCESS ETHSL SIGN FROM AWS
   // ---------------------------------------------------------------------------
-  Future<void> _processCapturedGesture(List<List<double>> frames) async {
+  Future<void> _processSignFromAWS(List<List<double>> frames) async {
     setState(() {
-      _liveSign = "Analyzing gesture...";
-      _liveAmharic = "በመተንተን ላይ...";
+      _statusSign = "Analyzing gesture on AWS...";
+      _statusAmharic = "በመተንተን ላይ...";
     });
 
     final result = await ApiClient.sendFrames(frames);
 
-    if (result != null && result.sign != "IDLE") {
+    if (result != null) {
+      final signName = result.sign;
+      final amharicName = result.amharic.isNotEmpty ? result.amharic : "ምልክት";
+      final conf = result.confidence;
+
       setState(() {
-        _liveSign = result.sign;
-        _liveAmharic = result.amharic;
+        _statusSign = signName;
+        _statusAmharic = amharicName;
 
         _messages.add(ChatMessageItem(
-          englishText: result.sign,
-          amharicText: result.amharic,
-          confidence: result.confidence,
+          englishText: signName,
+          amharicText: amharicName,
+          confidence: conf,
           timestamp: DateTime.now(),
-          isUser: true,
-          inputType: 'sign',
+          sender: "Patient (Deaf)",
+          type: "sign",
         ));
 
         _historyLog.insert(
           0,
-          "${result.sign} (${result.amharic}) — ${(result.confidence * 100).toInt()}% match [${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}]",
+          "$signName ($amharicName) — ${(conf * 100).toInt()}% [${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}]",
         );
       });
 
-      _speak(result.sign);
+      if (signName != "IDLE") {
+        _speak(signName);
+      }
       _scrollToBottom();
     } else {
       setState(() {
-        _liveSign = "Resting / Idle";
-        _liveAmharic = "ምንም ምልክት የለም";
+        _statusSign = "Connection Error";
+        _statusAmharic = "የግንኙነት ችግር";
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not connect to backend. Please ensure 'node server.js' is running.")),
+      );
     }
   }
 
   // ---------------------------------------------------------------------------
-  // REAL CAMERA SIGN STUDIO WITH ETHICAL CONSENT
+  // CAMERA STUDIO MODAL
   // ---------------------------------------------------------------------------
   void _openCameraStudio() {
     showDialog(
@@ -235,10 +209,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         content: const Text(
-          "Fikir Signs accesses your webcam to extract hand and body coordinates for real-time EthSL translation.\n\n"
-          "• Only numerical coordinate points are transmitted.\n"
-          "• Raw video never leaves your browser.\n\n"
-          "Do you consent to activate the camera for signing?",
+          "Fikir Signs accesses your webcam to track EthSL hand and body skeleton joints in real-time.\n\n"
+          "• Only numerical coordinate points are transmitted to AWS.\n"
+          "• No raw video is ever stored or saved.\n\n"
+          "Do you consent to activate the camera for translation?",
           style: TextStyle(fontSize: 14, height: 1.4),
         ),
         actions: [
@@ -253,7 +227,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             onPressed: () {
               Navigator.pop(ctx);
-              _launchRealCameraModal();
+              _launchRealCameraCapture();
             },
             child: const Text("Allow & Start Camera", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
@@ -262,23 +236,23 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _launchRealCameraModal() {
+  void _launchRealCameraCapture() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _RealCameraSheet(
+      builder: (ctx) => _MediaPipeCameraSheet(
         isDarkMode: _isDarkMode,
-        onFramesReady: (frames) {
+        onCaptureFinished: (frames) {
           Navigator.pop(ctx);
-          _processCapturedGesture(frames);
+          _processSignFromAWS(frames);
         },
       ),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // AUTH MODAL: Real Profile Login & Sign Up
+  // AUTH MODAL
   // ---------------------------------------------------------------------------
   void _openAuthModal() {
     showModalBottomSheet(
@@ -293,7 +267,7 @@ class _ChatScreenState extends State<ChatScreen> {
             _isLoggedIn = true;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Welcome back, $_userName!")),
+            SnackBar(content: Text("Profile active: $_userName")),
           );
         },
       ),
@@ -309,9 +283,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final textColor = isDark ? Colors.white : const Color(0xFF1E2024);
 
     return Scaffold(
-      // -----------------------------------------------------------------------
-      // LEFT DRAWER: Real Profile & History
-      // -----------------------------------------------------------------------
       drawer: Drawer(
         backgroundColor: cardColor,
         child: Column(
@@ -339,14 +310,14 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Expanded(
               child: _historyLog.isEmpty
-                  ? Center(child: Text("No signs recorded yet.", style: TextStyle(color: textColor.withOpacity(0.4), fontSize: 12)))
+                  ? Center(child: Text("No signs recorded yet.", style: TextStyle(color: textColor.withOpacity(0.4), fontSize: 13)))
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: _historyLog.length,
                       separatorBuilder: (_, __) => Divider(color: borderColor, height: 1),
                       itemBuilder: (ctx, i) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(_historyLog[i], style: TextStyle(fontSize: 13, color: textColor.withOpacity(0.85))),
+                        child: Text(_historyLog[i], style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.85))),
                       ),
                     ),
             ),
@@ -378,9 +349,6 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
 
-      // -----------------------------------------------------------------------
-      // APP BAR: English UI, Theme Toggle, Top-Right Sign In
-      // -----------------------------------------------------------------------
       appBar: AppBar(
         title: Row(
           children: [
@@ -393,7 +361,8 @@ class _ChatScreenState extends State<ChatScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Fikir Signs", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textColor)),
+                Text("Fikir Signs", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+                Text("EthSL • Real-Time AI Bridge", style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.5))),
               ],
             ),
           ],
@@ -424,35 +393,32 @@ class _ChatScreenState extends State<ChatScreen> {
         bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(color: borderColor, height: 1)),
       ),
 
-      // -----------------------------------------------------------------------
-      // BODY: Real-time Feed + Multimodal Input Bar
-      // -----------------------------------------------------------------------
       body: Column(
         children: [
-          // Live Status Ribbon
+          // Real-time Status Banner
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             color: surfaceColor,
             child: Row(
               children: [
                 Container(
-                  width: 8,
-                  height: 8,
+                  width: 10,
+                  height: 10,
                   decoration: BoxDecoration(
-                    color: _liveSign == "Standby" || _liveSign.contains("Resting") ? Colors.grey : AppTheme.lightOrange,
+                    color: _statusSign == "Standby" || _statusSign.contains("Resting") ? Colors.grey : AppTheme.lightOrange,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text("STATUS: ", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.4))),
-                Text(_liveSign, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.lightOrange)),
+                Text("STATUS: ", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withOpacity(0.4))),
+                Text(_statusSign, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.lightOrange)),
                 const Spacer(),
-                Text(_liveAmharic, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.olive)),
+                Text(_statusAmharic, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.olive)),
               ],
             ),
           ),
 
-          // Chat Feed
+          // High-Visibility Chat Feed (LARGE CLINIC TEXT)
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -460,64 +426,85 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
+                final isStaff = msg.sender.startsWith("Staff");
+
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(bottom: 20),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: msg.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                    mainAxisAlignment: isStaff ? MainAxisAlignment.end : MainAxisAlignment.start,
                     children: [
-                      if (!msg.isUser) ...[
-                        const CircleAvatar(
-                          radius: 16,
-                          backgroundColor: AppTheme.olive,
-                          child: Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                      if (!isStaff) ...[
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: msg.sender == "System" ? AppTheme.olive : AppTheme.lightOrange,
+                          child: Icon(
+                            msg.sender == "System" ? Icons.auto_awesome : Icons.accessibility_new_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                       ],
                       Flexible(
                         child: Container(
-                          padding: const EdgeInsets.all(15),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           decoration: BoxDecoration(
-                            color: msg.isUser ? AppTheme.lightOrange.withOpacity(0.12) : cardColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: msg.isUser ? AppTheme.lightOrange.withOpacity(0.35) : borderColor),
+                            color: isStaff ? AppTheme.lightOrange.withOpacity(0.12) : cardColor,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: isStaff ? AppTheme.lightOrange.withOpacity(0.4) : borderColor, width: 1.5),
                           ),
                           child: Column(
-                            crossAxisAlignment: msg.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            crossAxisAlignment: isStaff ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                             children: [
+                              Text(
+                                msg.sender,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isStaff ? AppTheme.lightOrange : AppTheme.olive),
+                              ),
+                              const SizedBox(height: 6),
+
+                              // LARGE HIGH-CONTRAST ENGLISH TEXT (26px)
                               Text(
                                 msg.englishText,
                                 style: TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 26,
                                   fontWeight: FontWeight.bold,
-                                  color: msg.isUser ? AppTheme.lightOrange : textColor,
+                                  height: 1.25,
+                                  color: isStaff ? AppTheme.lightOrange : textColor,
                                 ),
                               ),
+
+                              // LARGE HIGH-CONTRAST AMHARIC SUBTITLE (24px)
                               if (msg.amharicText.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(msg.amharicText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.olive)),
+                                const SizedBox(height: 8),
+                                Text(
+                                  msg.amharicText,
+                                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.25, color: AppTheme.olive),
+                                ),
                               ],
-                              const SizedBox(height: 6),
+
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  if (msg.inputType == 'sign') ...[
+                                  if (msg.type == 'sign') ...[
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(color: AppTheme.olive.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
-                                      child: Text("${(msg.confidence * 100).toInt()}% match", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.olive)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(color: AppTheme.olive.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                                      child: Text(
+                                        "${(msg.confidence * 100).toInt()}% Match",
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.olive),
+                                      ),
                                     ),
-                                    const SizedBox(width: 6),
+                                    const SizedBox(width: 8),
                                   ],
                                   Text(
                                     "${msg.timestamp.hour.toString().padLeft(2, '0')}:${msg.timestamp.minute.toString().padLeft(2, '0')}",
-                                    style: TextStyle(fontSize: 10, color: textColor.withOpacity(0.4)),
+                                    style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.4)),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.volume_up_rounded, size: 16),
+                                    icon: const Icon(Icons.volume_up_rounded, size: 20),
                                     color: AppTheme.olive,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
                                     onPressed: () => _speak(msg.englishText),
                                   ),
                                 ],
@@ -533,29 +520,27 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // -------------------------------------------------------------------
-          // MULTIMODAL COMPOSER: Write, Real Voice Speak, Camera Sign
-          // -------------------------------------------------------------------
+          // Multimodal Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: surfaceColor,
               border: Border(top: BorderSide(color: borderColor)),
             ),
             child: Row(
               children: [
-                // 1. Camera Sign Studio Button
+                // 1. Camera Button (Deaf Patients)
                 Container(
                   decoration: BoxDecoration(color: AppTheme.lightOrange.withOpacity(0.15), shape: BoxShape.circle),
                   child: IconButton(
-                    icon: const Icon(Icons.videocam_rounded, color: AppTheme.lightOrange),
+                    icon: const Icon(Icons.videocam_rounded, color: AppTheme.lightOrange, size: 26),
                     tooltip: "Open Camera to Sign",
                     onPressed: _openCameraStudio,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
 
-                // 2. Text Field
+                // 2. Text Input
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -566,19 +551,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: TextField(
                       controller: _textController,
-                      style: TextStyle(color: textColor, fontSize: 14),
+                      style: TextStyle(color: textColor, fontSize: 16),
                       decoration: InputDecoration(
-                        hintText: "Type a medical phrase or question...",
-                        hintStyle: TextStyle(color: textColor.withOpacity(0.4), fontSize: 13),
+                        hintText: "Staff: Type message for deaf patient...",
+                        hintStyle: TextStyle(color: textColor.withOpacity(0.4), fontSize: 14),
                         border: InputBorder.none,
                       ),
-                      onSubmitted: (t) => _submitTextMessage(t),
+                      onSubmitted: (t) => _submitStaffMessage(t),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
 
-                // 3. Real Voice Input Button (Mic)
+                // 3. Real Microphone Button (Hearing Staff)
                 Container(
                   decoration: BoxDecoration(
                     color: _isListeningVoice ? Colors.redAccent.withOpacity(0.2) : AppTheme.olive.withOpacity(0.15),
@@ -588,20 +573,20 @@ class _ChatScreenState extends State<ChatScreen> {
                     icon: Icon(
                       _isListeningVoice ? Icons.mic_rounded : Icons.mic_none_rounded,
                       color: _isListeningVoice ? Colors.redAccent : AppTheme.olive,
+                      size: 24,
                     ),
-                    tooltip: "Speak in English",
-                    onPressed: _toggleVoiceRecording,
+                    tooltip: "Speak into Microphone (English)",
+                    onPressed: _startVoiceInput,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
 
                 // 4. Send Button
                 Container(
                   decoration: const BoxDecoration(color: AppTheme.lightOrange, shape: BoxShape.circle),
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
-                    tooltip: "Send message",
-                    onPressed: () => _submitTextMessage(_textController.text),
+                    icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 22),
+                    onPressed: () => _submitStaffMessage(_textController.text),
                   ),
                 ),
               ],
@@ -614,108 +599,64 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 // =============================================================================
-// REAL WEBCAM MODAL: Captures Dynamic Motion Over Time (30 Frames)
+// CAMERA STUDIO: Natural 3-Second Window with Real Landmarks
 // =============================================================================
-class _RealCameraSheet extends StatefulWidget {
+class _MediaPipeCameraSheet extends StatefulWidget {
   final bool isDarkMode;
-  final Function(List<List<double>>) onFramesReady;
+  final Function(List<List<double>>) onCaptureFinished;
 
-  const _RealCameraSheet({required this.isDarkMode, required this.onFramesReady});
+  const _MediaPipeCameraSheet({required this.isDarkMode, required this.onCaptureFinished});
 
   @override
-  State<_RealCameraSheet> createState() => _RealCameraSheetState();
+  State<_MediaPipeCameraSheet> createState() => _MediaPipeCameraSheetState();
 }
 
-class _RealCameraSheetState extends State<_RealCameraSheet> {
-  html.VideoElement? _videoElement;
-  final String _viewId = "webcam-view-${DateTime.now().millisecondsSinceEpoch}";
-  bool _cameraReady = false;
+class _MediaPipeCameraSheetState extends State<_MediaPipeCameraSheet> {
   bool _isRecording = false;
-  String _recordingStatus = "Ready to record sign";
+  double _recordingProgress = 0.0;
+  String _statusMessage = "Position yourself in front of camera";
 
-  // Dynamic 30-frame capture buffer
-  final List<List<double>> _recordedFrames = [];
-  Timer? _recordTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _startWebcam();
-  }
-
-  void _startWebcam() async {
-    try {
-      _videoElement = html.VideoElement()
-        ..autoplay = true
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..style.objectFit = 'cover'
-        ..style.transform = 'scaleX(-1)'; // Mirror preview for user
-
-      final stream = await html.window.navigator.mediaDevices?.getUserMedia({'video': true});
-      if (stream != null) {
-        _videoElement!.srcObject = stream;
-        ui_web.platformViewRegistry.registerViewFactory(_viewId, (int id) => _videoElement!);
-        setState(() => _cameraReady = true);
-      }
-    } catch (e) {
-      debugPrint("Webcam error: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    _recordTimer?.cancel();
-    _videoElement?.srcObject?.getTracks().forEach((track) => track.stop());
-    super.dispose();
-  }
-
-  // ---------------------------------------------------------------------------
-  // DYNAMIC MOTION CAPTURE: Records 30 frames over ~1.2 seconds of movement
-  // ---------------------------------------------------------------------------
-  void _recordSignGesture() async {
+  void _startCameraRecording() {
     setState(() {
       _isRecording = true;
-      _recordingStatus = "Get Ready: 3...";
+      _recordingProgress = 0.0;
+      _statusMessage = "Starting camera...";
     });
 
-    // 3-second countdown
-    for (int i = 3; i >= 1; i--) {
-      setState(() => _recordingStatus = "Get Ready: $i...");
-      await Future.delayed(const Duration(seconds: 1));
-    }
-
-    setState(() {
-      _recordingStatus = "RECORDING NOW! (Perform your sign)";
-      _recordedFrames.clear();
-    });
-
-    int framesCollected = 0;
-    _recordTimer = Timer.periodic(const Duration(milliseconds: 40), (timer) {
-      if (framesCollected < 30) {
-        // Collect frame landmarks with dynamic temporal trajectory
-        final frame144 = List<double>.generate(144, (idx) {
-          // Right hand & body trajectory across the 30 frames
-          if (idx >= 63 && idx < 126) {
-            return 0.35 + (framesCollected * 0.005);
-          } else if (idx >= 126) {
-            return 0.50; // Centered body anchor
+    try {
+      // Calls window.startEthSLCameraSession defined in index.html!
+      js.context.callMethod('startEthSLCameraSession', [
+        'ethsl-camera-feed',
+        (status, progress) {
+          if (mounted) {
+            setState(() {
+              _statusMessage = status.toString();
+              _recordingProgress = (progress as num).toDouble();
+            });
           }
-          return 0.0;
-        });
-        _recordedFrames.add(frame144);
-        framesCollected++;
-      } else {
-        timer.cancel();
-        setState(() {
-          _isRecording = false;
-          _recordingStatus = "Finished! Analyzing...";
-        });
+        },
+        (framesJson) {
+          final List<dynamic> raw = jsonDecode(framesJson);
+          final List<List<double>> cleanFrames = raw
+              .map((f) => (f as List).map((n) => (n as num).toDouble()).toList())
+              .toList();
 
-        // Send real captured motion to backend & AWS
-        widget.onFramesReady(_recordedFrames);
-      }
-    });
+          if (mounted) {
+            setState(() {
+              _isRecording = false;
+              _statusMessage = "Processing gesture on AWS...";
+            });
+          }
+          widget.onCaptureFinished(cleanFrames);
+        }
+      ]);
+    } catch (e) {
+      debugPrint("Camera error: $e");
+      setState(() {
+        _isRecording = false;
+        _statusMessage = "Camera access error. Please allow camera permissions.";
+      });
+    }
   }
 
   @override
@@ -724,16 +665,16 @@ class _RealCameraSheetState extends State<_RealCameraSheet> {
     final txtColor = widget.isDarkMode ? Colors.white : Colors.black87;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.80,
+      height: 420,
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       child: Column(
         children: [
           Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.4), borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -741,59 +682,64 @@ class _RealCameraSheetState extends State<_RealCameraSheet> {
                 children: [
                   const Icon(Icons.videocam_rounded, color: AppTheme.lightOrange),
                   const SizedBox(width: 8),
-                  Text("Live EthSL Camera Studio", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: txtColor)),
+                  Text("Live EthSL Sign Capture", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: txtColor)),
                 ],
               ),
               IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
 
-          // Real Live Webcam Viewfinder
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                color: Colors.black,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (_cameraReady)
-                      HtmlElementView(viewType: _viewId)
-                    else
-                      const Center(child: CircularProgressIndicator(color: AppTheme.lightOrange)),
-
-                    // Recording Overlay
-                    if (_isRecording)
-                      Container(
-                        color: Colors.black54,
-                        padding: const EdgeInsets.all(20),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _recordingStatus,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.lightOrangeSoft),
-                        ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: widget.isDarkMode ? AppTheme.darkSurface : AppTheme.lightSurface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.olive.withOpacity(0.3)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(_isRecording ? Icons.radio_button_checked_rounded : Icons.accessibility_new_rounded,
+                      size: 56, color: _isRecording ? Colors.redAccent : AppTheme.olive),
+                  const SizedBox(height: 14),
+                  Text(_statusMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _isRecording ? AppTheme.lightOrange : txtColor)),
+                  const SizedBox(height: 16),
+                  if (_isRecording) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: _recordingProgress,
+                        minHeight: 8,
+                        backgroundColor: Colors.grey.withOpacity(0.2),
+                        color: AppTheme.lightOrange,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text("Perform complete sign now...", style: TextStyle(fontSize: 13, color: txtColor.withOpacity(0.5))),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Action Button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.lightOrange,
+                backgroundColor: _isRecording ? Colors.grey : AppTheme.lightOrange,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              icon: const Icon(Icons.fiber_manual_record_rounded, color: Colors.white),
-              label: Text(_isRecording ? "Recording..." : "Capture 30-Frame Sign", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              onPressed: _isRecording ? null : _recordSignGesture,
+              icon: Icon(_isRecording ? Icons.hourglass_top_rounded : Icons.fiber_manual_record_rounded, color: Colors.white),
+              label: Text(_isRecording ? "Recording Gesture..." : "Start 3-Second Sign Recording",
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              onPressed: _isRecording ? null : _startCameraRecording,
             ),
           ),
         ],
@@ -803,7 +749,7 @@ class _RealCameraSheetState extends State<_RealCameraSheet> {
 }
 
 // =============================================================================
-// AUTHENTICATION MODAL: Real State Capture & Clean Spacious Padding
+// AUTH MODAL: Spacious Form
 // =============================================================================
 class _AuthModal extends StatefulWidget {
   final Function(String name, String email) onSuccess;
@@ -831,8 +777,8 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
   void _handleLogin() {
     final email = _loginEmail.text.trim();
     if (email.isNotEmpty) {
-      final name = email.split("@")[0];
-      widget.onSuccess(name, email);
+      final name = email.split("@")[0].replaceAll(".", " ");
+      widget.onSuccess(name[0].toUpperCase() + name.substring(1), email);
       Navigator.pop(context);
     }
   }
@@ -859,13 +805,13 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
           color: cardBg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.withOpacity(0.4), borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               TabBar(
                 controller: _tabController,
                 labelColor: AppTheme.lightOrange,
@@ -876,11 +822,10 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
               const SizedBox(height: 24),
 
               SizedBox(
-                height: 300,
+                height: 310,
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    // Login Tab
                     Column(
                       children: [
                         TextField(
@@ -890,9 +835,10 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
                             labelText: "Email Address",
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         TextField(
                           controller: _loginPass,
                           obscureText: true,
@@ -901,14 +847,18 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
                             labelText: "Password",
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
-                          height: 48,
+                          height: 50,
                           child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.lightOrange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.lightOrange,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
                             onPressed: _handleLogin,
                             child: const Text("Sign In", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
@@ -916,16 +866,16 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
                       ],
                     ),
 
-                    // Sign Up Tab
                     Column(
                       children: [
                         TextField(
                           controller: _signupName,
                           style: TextStyle(color: txtColor),
                           decoration: InputDecoration(
-                            labelText: "Full Name",
+                            labelText: "Full Name (e.g., Dr. Abebe)",
                             prefixIcon: const Icon(Icons.person_outline_rounded),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -936,6 +886,7 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
                             labelText: "Email Address",
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -944,19 +895,23 @@ class _AuthModalState extends State<_AuthModal> with SingleTickerProviderStateMi
                           obscureText: true,
                           style: TextStyle(color: txtColor),
                           decoration: InputDecoration(
-                            labelText: "Create Password",
+                            labelText: "Password",
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
                         const SizedBox(height: 20),
                         SizedBox(
                           width: double.infinity,
-                          height: 48,
+                          height: 50,
                           child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.olive, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.olive,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
                             onPressed: _handleSignup,
-                            child: const Text("Create Free Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                            child: const Text("Create Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
                         ),
                       ],
