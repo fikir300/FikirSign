@@ -1,20 +1,21 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+// app/lib/core/config/env.dart
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 
-/// Reads environment variables loaded from the local `.env` file.
 class Env {
-  Env._();
+  // If your phone is on the same Wi-Fi, change this to your laptop's local IP (e.g. 192.168.1.15)
+  static const String _customHost = "";
 
-  /// Base URL for backend API requests (AWS API Gateway or local proxy).
-  static String get apiBaseUrl =>
-      dotenv.env['API_BASE_URL'] ??
-      'https://example.execute-api.region.amazonaws.com/prod';
-
-  /// API key passed in `x-api-key` header for authorized requests.
-  static String get apiKey => dotenv.env['API_KEY'] ?? 'changeme';
-
-  /// Whether to use local mock API data instead of actual network calls.
-  static bool get useMockApi {
-    final value = dotenv.env['USE_MOCK_API']?.toLowerCase().trim();
-    return value == 'true' || value == '1';
+  static String get backendUrl {
+    if (_customHost.isNotEmpty) {
+      return "http://$_customHost:5000/api/translate";
+    }
+    if (kIsWeb) {
+      return "http://localhost:5000/api/translate";
+    }
+    if (Platform.isAndroid) {
+      return "http://10.0.2.2:5000/api/translate"; // Android Emulator to Laptop Host
+    }
+    return "http://localhost:5000/api/translate";
   }
 }
