@@ -166,11 +166,11 @@ Team members should coordinate changes across the frontend, backend, and AI comp
 ## Team
 
 Fikr Sign is a collaborative hackathon project with contributions across application development, backend API development, AI integration, and UI/UX design.
-## Betelhem Nurlachw godie
-## Fikirte Alemayehu Achamyeleh
-## Mahilet Andualem Beyene
-## Soleyana Abera Derara
-## Soliyana Shewalante Mengesha
+1. Betelhem Nurlachw godie
+2. Fikirte Alemayehu Achamyeleh
+3.Mahilet Andualem Beyene
+4.Soleyana Abera Derara
+5.Soliyana Shewalante Mengesha
 
 ## Vision
 
